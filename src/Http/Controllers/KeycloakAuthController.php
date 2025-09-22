@@ -60,13 +60,40 @@ class KeycloakAuthController extends Controller
             $tokens = $this->keycloak->exchangeCodeForTokens($code);
 
             // Get user info
-            $user = $this->keycloak->user();
+            $keycloakUser = $this->keycloak->user();
 
-            // Fire login event
-            event('keycloak.login', [$user, $tokens]);
-            $clientId = env('KEYCLOAK_DEFAULT_REDIRECT');
-            // Redirect to intended page or dashboard
-            $redirectUrl = session()->pull( env('KEYCLOAK_DEFAULT_REDIRECT'));
+            // Fire login event with the raw Keycloak user data
+            event('keycloak.login', [$keycloakUser, $tokens]);
+
+            // Prepare Socialite user data
+            $socialiteUser = (new \Laravel\Socialite\Two\User)->setRaw($keycloakUser)
+                ->map([
+                    'id' => $keycloakUser['sub'] ?? $keycloakUser['id'] ?? null,
+                    'name' => $keycloakUser['name'] ?? null,
+                    'email' => $keycloakUser['email'] ?? null,
+                    'email_verified' => $keycloakUser['email_verified'] ?? false,
+                    'nickname' => $keycloakUser['preferred_username'] ?? null,
+                    'avatar' => null, // Add avatar URL if available in Keycloak
+                ]);
+
+            // Store tokens in session
+            session(['keycloak_token' => $tokens]);
+
+            // Get the user from your database or create a new one
+            $user = \App\Models\User::updateOrCreate(
+                ['email' => $socialiteUser->email],
+                [
+                    'name' => $socialiteUser->name,
+                    'keycloak_id' => $socialiteUser->id,
+                    'email_verified_at' => $socialiteUser->email_verified ? now() : null,
+                ]
+            );
+
+            // Log the user in
+            \Auth::login($user);
+
+            // Get the intended URL or use default
+            $redirectUrl = session()->pull('url.intended', config('keycloak.auth.redirect_after_login', '/'));
             return redirect($redirectUrl);
 
         } catch (\Exception $e) {
