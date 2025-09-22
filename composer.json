@@ -1,5 +1,5 @@
 {
-    "name": "keycloak-auth/laravel",
+    "name": "maxjack/keycloak-auth",
     "description": "Laravel integration package for Keycloak authentication with HTMX support",
     "keywords": ["laravel", "keycloak", "authentication", "oauth", "htmx", "sso"],
     "type": "library",
