@@ -183,12 +183,81 @@ class KeycloakService
 
 
     /**
+     * Build PEM format public key from JWK
+     */
+    protected function buildPublicKey(array $keyData): string
+    {
+        $modulus = $this->base64UrlDecode($keyData['n']);
+        $exponent = $this->base64UrlDecode($keyData['e']);
+
+        $components = [
+            'modulus' => pack('Ca*a*', 2, $this->encodeLength(strlen($modulus)), $modulus),
+            'publicExponent' => pack('Ca*a*', 2, $this->encodeLength(strlen($exponent)), $exponent),
+        ];
+
+        $rsaPublicKey = pack(
+            'Ca*a*a*',
+            48,
+            $this->encodeLength(strlen($components['modulus']) + strlen($components['publicExponent'])),
+            $components['modulus'],
+            $components['publicExponent']
+        );
+
+        $rsaOID = pack('H*', '300d06092a864886f70d0101010500');
+        $rsaPublicKey = chr(0) . $rsaPublicKey;
+        $rsaPublicKey = chr(3) . $this->encodeLength(strlen($rsaPublicKey)) . $rsaPublicKey;
+
+        $rsaPublicKey = pack(
+            'Ca*a*',
+            48,
+            $this->encodeLength(strlen($rsaOID . $rsaPublicKey)),
+            $rsaOID . $rsaPublicKey
+        );
+
+        return "-----BEGIN PUBLIC KEY-----\r\n" .
+            chunk_split(base64_encode($rsaPublicKey), 64) .
+            "-----END PUBLIC KEY-----";
+    }
+
+    /**
+     * Encode ASN.1 length
+     */
+    protected function encodeLength(int $length): string
+    {
+        if ($length <= 0x7F) {
+            return chr($length);
+        }
+
+        $temp = ltrim(pack('N', $length), chr(0));
+        return pack('Ca*', 0x80 | strlen($temp), $temp);
+    }
+
+    /**
      * Base64 URL decode
      */
     protected function base64UrlDecode(string $data): string
     {
         return base64_decode(strtr($data, '-_', '+/') . str_repeat('=', 3 - (3 + strlen($data)) % 4));
     }
+
+    /**
+     * Format user info from token
+     */
+    protected function formatUserInfo(object $tokenData): array
+    {
+        return [
+            'id' => $tokenData->sub ?? null,
+            'username' => $tokenData->preferred_username ?? null,
+            'email' => $tokenData->email ?? null,
+            'email_verified' => $tokenData->email_verified ?? false,
+            'name' => $tokenData->name ?? null,
+            'given_name' => $tokenData->given_name ?? null,
+            'family_name' => $tokenData->family_name ?? null,
+            'roles' => $tokenData->realm_access->roles ?? [],
+            'groups' => $tokenData->groups ?? [],
+        ];
+    }
+
 
 
     /**

@@ -107,7 +107,7 @@ class KeycloakAuthController extends Controller
             ->route('keycloak.login')
             ->with('error', 'Authentication failed: ' . $message);
     }
-    }
+
 
     /**
      * Logout user
