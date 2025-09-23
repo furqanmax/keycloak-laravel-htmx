@@ -1,0 +1,392 @@
+/* Reset and base styles */
+/** {*/
+/*    box-sizing: border-box;*/
+/*}*/
+
+/*body {*/
+/*    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;*/
+/*    margin: 0;*/
+/*    padding: 0;*/
+/*    background: hsl(0 0% 98%);*/
+/*    color: hsl(224 71.4% 4.1%);*/
+/*    line-height: 1.5;*/
+/*}*/
+
+/* Container */
+.kc-container {
+    /*min-height: 100vh;*/
+    /*display: flex;*/
+    align-items: center;
+    justify-content: center;
+    /*padding: 1rem;*/
+}
+
+/* Login wrapper */
+.pf-v5-c-login {
+    /*width: 100%;*/
+    max-width: 400px;
+}
+
+/*.pf-v5-c-login__container {*/
+/*    background: white;*/
+/*    border: 1px solid hsl(214.3 31.8% 91.4%);*/
+/*    border-radius: 0.5rem;*/
+/*    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);*/
+/*    overflow: hidden;*/
+/*}*/
+
+/* Header */
+.pf-v5-c-login__header {
+    padding: 1.5rem 1.5rem 0;
+    text-align: center;
+}
+
+.pf-v5-c-brand {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: hsl(224 71.4% 4.1%);
+}
+
+/* Main content */
+/*.pf-v5-c-login__main {*/
+/*    padding: 1.5rem;*/
+/*}*/
+
+.pf-v5-c-login__main-header {
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.pf-v5-c-title.pf-m-3xl {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+    color: hsl(224 71.4% 4.1%);
+}
+
+/* Form styles */
+.pf-v5-c-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.pf-v5-c-form__group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.pf-v5-c-form__label {
+    display: block;
+}
+
+.pf-v5-c-form__label-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: hsl(224 71.4% 4.1%);
+}
+
+/* Input controls */
+.pf-v5-c-form-control {
+    display: flex;
+    width: 100%;
+}
+
+.pf-v5-c-form-control input {
+    flex: 1;
+    height: 2.5rem;
+    width: 100%;
+    border-radius: 0.375rem;
+    border: 1px solid hsl(214.3 31.8% 91.4%);
+    background: white;
+    padding: 0 0.75rem;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.pf-v5-c-form-control input:focus {
+    border-color: hsl(221.2 83.2% 53.3%);
+    box-shadow: 0 0 0 2px hsl(221.2 83.2% 53.3% / 0.2);
+}
+
+.pf-v5-c-form-control input::placeholder {
+    color: hsl(215.4 16.3% 46.9%);
+}
+
+/* Input group for password field */
+.pf-v5-c-input-group {
+    display: flex;
+    width: 100%;
+    border-radius: 0.375rem;
+    border: 1px solid hsl(214.3 31.8% 91.4%);
+    transition: all 0.2s ease;
+    overflow: hidden;
+}
+
+.pf-v5-c-input-group:focus-within {
+    border-color: hsl(221.2 83.2% 53.3%);
+    box-shadow: 0 0 0 2px hsl(221.2 83.2% 53.3% / 0.2);
+}
+
+.pf-v5-c-input-group__item.pf-m-fill {
+    flex: 1;
+}
+
+.pf-v5-c-input-group .pf-v5-c-form-control {
+    border: none;
+    margin: 0;
+}
+
+.pf-v5-c-input-group .pf-v5-c-form-control input {
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    height: 2.5rem;
+}
+
+.pf-v5-c-input-group .pf-v5-c-form-control input:focus {
+    box-shadow: none;
+    border: none;
+}
+
+/* Password toggle button */
+.pf-v5-c-button.pf-m-control {
+    height: 2.5rem;
+    width: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: hsl(210 40% 98%);
+    color: hsl(215.4 16.3% 46.9%);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 1px solid hsl(214.3 31.8% 91.4%);
+}
+
+.pf-v5-c-button.pf-m-control:hover {
+    background: hsl(210 40% 96%);
+    color: hsl(224 71.4% 4.1%);
+}
+
+.pf-v5-c-button.pf-m-control i {
+    font-size: 0.875rem;
+}
+
+/* Helper text and links */
+.pf-v5-c-form__helper-text {
+    margin-top: 0.375rem;
+}
+
+.pf-v5-c-helper-text__item-text a {
+    color: hsl(221.2 83.2% 53.3%);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.pf-v5-c-helper-text__item-text a:hover {
+    color: hsl(221.2 83.2% 43.3%);
+    text-decoration: underline;
+}
+
+/* Checkbox */
+.pf-v5-c-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pf-v5-c-check__input {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 0.25rem;
+    border: 1px solid hsl(214.3 31.8% 91.4%);
+    accent-color: hsl(221.2 83.2% 53.3%);
+}
+
+.pf-v5-c-check__label {
+    font-size: 0.875rem;
+    color: hsl(224 71.4% 4.1%);
+    cursor: pointer;
+}
+
+/* Primary button */
+.pf-v5-c-button.pf-m-primary {
+    height: 2.5rem;
+    padding: 0 1rem;
+    background: hsl(221.2 83.2% 53.3%);
+    color: white;
+    border: none;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+    background: hsl(221.2 83.2% 43.3%);
+}
+
+.pf-v5-c-button.pf-m-primary:disabled {
+    background: hsl(214.3 31.8% 91.4%);
+    color: hsl(215.4 16.3% 46.9%);
+    cursor: not-allowed;
+}
+
+/* Form actions */
+.pf-v5-c-form__actions {
+    margin-top: 0.5rem;
+}
+
+/* Footer */
+.pf-v5-c-login__main-footer {
+    padding: 1.5rem;
+    border-top: 1px solid hsl(214.3 31.8% 91.4%);
+    background: hsl(210 40% 98%);
+}
+
+.pf-v5-c-login__main-footer-band {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.pf-v5-c-login__main-footer-band:last-child {
+    margin-bottom: 0;
+}
+
+.pf-v5-c-login__main-footer-band-item {
+    font-size: 0.875rem;
+    color: hsl(215.4 16.3% 46.9%);
+}
+
+.pf-v5-c-login__main-footer-band-item a {
+    color: hsl(221.2 83.2% 53.3%);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.pf-v5-c-login__main-footer-band-item a:hover {
+    color: hsl(221.2 83.2% 43.3%);
+    text-decoration: underline;
+}
+
+/* Social login */
+.pf-v5-c-login__main-footer-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.pf-v5-c-login__main-footer-links-item-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid hsl(214.3 31.8% 91.4%);
+    border-radius: 0.375rem;
+    background: white;
+    color: hsl(215.4 16.3% 46.9%);
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.pf-v5-c-login__main-footer-links-item-link:hover {
+    border-color: hsl(221.2 83.2% 53.3%);
+    background: hsl(221.2 83.2% 53.3% / 0.1);
+}
+
+.pf-v5-c-login__main-footer-links-item-link svg {
+    width: 1rem;
+    height: 1rem;
+    fill: currentColor;
+}
+
+/* Password visibility toggle functionality */
+.pf-v5-c-button[data-password-toggle] {
+    position: relative;
+}
+
+/* Hide/show password icons - requires JavaScript to toggle classes */
+.pf-v5-c-button[data-password-toggle] .fa-eye {
+    display: block;
+}
+
+.pf-v5-c-button[data-password-toggle] .fa-eye-slash {
+    display: none;
+}
+
+.pf-v5-c-button[data-password-toggle].password-visible .fa-eye {
+    display: none;
+}
+
+.pf-v5-c-button[data-password-toggle].password-visible .fa-eye-slash {
+    display: block;
+}
+
+/* Font Awesome icons (if not loaded externally) */
+.fas {
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+}
+
+.fa-eye:before {
+    content: "\f06e";
+}
+
+.fa-eye-slash:before {
+    content: "\f070";
+}
+
+/* Error states */
+input[aria-invalid="true"] {
+    border-color: hsl(0 84.2% 60.2%);
+}
+
+input[aria-invalid="true"]:focus {
+    border-color: hsl(0 84.2% 60.2%);
+    box-shadow: 0 0 0 2px hsl(0 84.2% 60.2% / 0.2);
+}
+
+.pf-v5-c-input-group:has(input[aria-invalid="true"]) {
+    border-color: hsl(0 84.2% 60.2%);
+}
+
+.pf-v5-c-input-group:has(input[aria-invalid="true"]):focus-within {
+    border-color: hsl(0 84.2% 60.2%);
+    box-shadow: 0 0 0 2px hsl(0 84.2% 60.2% / 0.2);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .kc-container {
+        padding: 0.5rem;
+    }
+
+    .pf-v5-c-login__container {
+        border: none;
+        box-shadow: none;
+        background: transparent;
+    }
+
+    .pf-v5-c-login__main {
+        padding: 1rem;
+    }
+
+    .pf-v5-c-login__main-footer {
+        padding: 1rem;
+    }
+}

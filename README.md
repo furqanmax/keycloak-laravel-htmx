@@ -52,6 +52,13 @@ Include these scripts in your main layout file (usually `resources/views/layouts
 
 <!-- Keycloak JS Adapter (required for direct client-side auth) -->
 <script src="https://${KEYCLOAK_BASE_URL}/js/keycloak.js"></script>
+
+<!-- CSS -->
+<link rel="stylesheet" href="{{ asset('vendor/keycloak-auth/css/keycloak-styles.css') }}">
+
+<!-- JS -->
+<script src="{{ asset('vendor/keycloak-auth/js/main.js') }}"></script>
+
 ```
 
 ### HTMX Configuration
