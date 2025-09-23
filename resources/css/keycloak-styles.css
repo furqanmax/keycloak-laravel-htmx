@@ -390,3 +390,7 @@ input[aria-invalid="true"]:focus {
         padding: 1rem;
     }
 }
+
+.pf-m-error{
+    color: hsl(0 84.2% 60.2%);
+}

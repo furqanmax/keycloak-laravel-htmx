@@ -14,13 +14,15 @@ A seamless integration of Keycloak authentication with Laravel, enhanced with HT
 1. Install the package via Composer:
 
 ```bash
-composer require keycloak-auth/laravel
+composer require maxjack/keycloak-auth
 ```
 
 2. Publish the configuration file:
 
 ```bash
 php artisan vendor:publish --tag=keycloak-config
+
+php artisan vendor:publish --tag=public
 ```
 
 3. Configure your `.env` file with your Keycloak settings:
@@ -261,46 +263,428 @@ Route::middleware(['keycloak.auth'])->group(function () {
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+     
     <script>
-        (function() {
-            // Process HTMX responses from Keycloak proxy
-            document.body.addEventListener('htmx:afterSwap', function(ev) {
-                if (ev.target.id !== 'kc-container') return;
-    
-                const container = document.getElementById('kc-container');
-    
-                // Convert links and forms to HTMX requests
-                container.querySelectorAll('a[href]').forEach(a => {
-                    const href = a.getAttribute('href');
-                    if (href && !href.startsWith('javascript:')) {
-                        a.setAttribute('hx-get', `{{ route('keycloak.proxy') }}?url=${encodeURIComponent(href)}`);
-                        a.setAttribute('hx-target', '#kc-container');
-                        a.setAttribute('hx-swap', 'innerHTML');
-                        a.removeAttribute('href');
-                    }
-                });
-    
-                container.querySelectorAll('form[action]').forEach(form => {
-                    const action = form.getAttribute('action');
-                    const method = (form.getAttribute('method') || 'GET').toUpperCase();
-    
-                    if (method === 'POST') {
-                        form.setAttribute('hx-post', `{{ route('keycloak.proxy') }}?url=${encodeURIComponent(action)}`);
-                    } else {
-                        form.setAttribute('hx-get', `{{ route('keycloak.proxy') }}?url=${encodeURIComponent(action)}`);
-                    }
-                    form.setAttribute('hx-target', '#kc-container');
-                    form.setAttribute('hx-swap', 'innerHTML');
-                    form.removeAttribute('action');
-                });
-    
-                // Re-process with HTMX
-                htmx.process(container);
-            });
-        })();
-    </script>
+                            // Authentication Handler - Namespace to prevent conflicts
+                            window.AuthHandler = (function() {
+                                'use strict';
 
+                                // Private variables
+                                let container = null;
+                                let isInitialized = false;
+
+                                // Configuration
+                                const CONFIG = {
+                                    containerId: 'kc-container',
+                                    loaderOverlayId: 'kc-loader-overlay',
+                                    zIndex: '1050',
+                                    keycloakRoute: '{{ route("keycloak.proxy") }}'
+                                };
+
+                                // Private utility functions
+                                const utils = {
+                                    // Safe element selection
+                                    safeQuerySelector: function(selector, context = document) {
+                                        try {
+                                            return context.querySelector(selector);
+                                        } catch (e) {
+                                            console.warn(`AuthHandler: Invalid selector "${selector}"`, e);
+                                            return null;
+                                        }
+                                    },
+
+                                    // Safe element selection (multiple)
+                                    safeQuerySelectorAll: function(selector, context = document) {
+                                        try {
+                                            return Array.from(context.querySelectorAll(selector));
+                                        } catch (e) {
+                                            console.warn(`AuthHandler: Invalid selector "${selector}"`, e);
+                                            return [];
+                                        }
+                                    },
+
+                                    // Create element with attributes
+                                    createElement: function(tag, attributes = {}, innerHTML = '') {
+                                        const element = document.createElement(tag);
+
+                                        Object.keys(attributes).forEach(key => {
+                                            if (key === 'className') {
+                                                element.className = attributes[key];
+                                            } else if (key === 'style' && typeof attributes[key] === 'object') {
+                                                Object.assign(element.style, attributes[key]);
+                                            } else {
+                                                element.setAttribute(key, attributes[key]);
+                                            }
+                                        });
+
+                                        if (innerHTML) {
+                                            element.innerHTML = innerHTML;
+                                        }
+
+                                        return element;
+                                    },
+
+                                    // Debounce function to prevent rapid calls
+                                    debounce: function(func, wait) {
+                                        let timeout;
+                                        return function executedFunction(...args) {
+                                            const later = () => {
+                                                clearTimeout(timeout);
+                                                func(...args);
+                                            };
+                                            clearTimeout(timeout);
+                                            timeout = setTimeout(later, wait);
+                                        };
+                                    }
+                                };
+
+                                // Loader management
+                                const loader = {
+                                    show: function() {
+                                        if (!container) {
+                                            console.warn('AuthHandler: Container not found for loader');
+                                            return;
+                                        }
+
+                                        // Prevent multiple loaders
+                                        if (utils.safeQuerySelector(`#${CONFIG.loaderOverlayId}`)) {
+                                            return;
+                                        }
+
+                                        const loaderElement = utils.createElement('div', {
+                                            id: CONFIG.loaderOverlayId,
+                                            className: 'position-absolute top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-white',
+                                            style: { zIndex: CONFIG.zIndex }
+                                        }, `
+                <div class="text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="text-muted">Processing...</p>
+                </div>
+            `);
+
+                                        container.appendChild(loaderElement);
+                                    },
+
+                                    hide: function() {
+                                        const loaderElement = utils.safeQuerySelector(`#${CONFIG.loaderOverlayId}`);
+                                        if (loaderElement && loaderElement.parentNode) {
+                                            loaderElement.parentNode.removeChild(loaderElement);
+                                        }
+                                    }
+                                };
+
+                                // Error handling
+                                const errorHandler = {
+                                    show: function(message) {
+                                        if (!container) {
+                                            console.error('AuthHandler: Container not found for error display');
+                                            return;
+                                        }
+
+                                        const alertElement = utils.createElement('div', {
+                                            className: 'alert alert-danger alert-dismissible fade show m-2',
+                                            role: 'alert'
+                                        }, `
+                <strong>Error:</strong> ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `);
+
+                                        container.insertBefore(alertElement, container.firstChild);
+
+                                        // Auto-remove after 5 seconds
+                                        setTimeout(() => {
+                                            if (alertElement && alertElement.parentNode) {
+                                                alertElement.parentNode.removeChild(alertElement);
+                                            }
+                                        }, 5000);
+                                    }
+                                };
+
+                                // Password toggle functionality
+                                const passwordToggle = {
+                                    icons: {
+                                        show: `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477
+                        0 8.268 2.943 9.542 7-1.274 4.057-5.065
+                        7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+            `,
+                                        hide: `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.477
+                        0-8.268-2.943-9.542-7a9.97 9.97 0
+                        012.845-4.419m3.181-2.104A9.956 9.956
+                        0 0112 5c4.477 0 8.268 2.943
+                        9.542 7a9.969 9.969 0 01-4.043
+                        5.197M15 12a3 3 0 11-6 0 3
+                        3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 3l18 18" />
+                </svg>
+            `
+                                    },
+
+                                    init: function(context) {
+                                        if (!context) return;
+
+                                        const toggleButtons = utils.safeQuerySelectorAll(
+                                            "button[aria-label='Show password'], button[aria-label='Hide password']",
+                                            context
+                                        );
+
+                                        toggleButtons.forEach(btn => {
+                                            if (btn.dataset.authToggleBound) {
+                                                return; // Already initialized
+                                            }
+
+                                            const inputId = btn.getAttribute('aria-controls');
+                                            const input = inputId ? utils.safeQuerySelector(`#${inputId}`, context) : null;
+
+                                            if (!input) {
+                                                console.warn('AuthHandler: Password input not found for toggle button');
+                                                return;
+                                            }
+
+                                            // Set initial state
+                                            btn.innerHTML = this.icons.show;
+
+                                            // Create toggle handler
+                                            const toggleHandler = () => {
+                                                try {
+                                                    if (input.type === 'password') {
+                                                        input.type = 'text';
+                                                        btn.setAttribute('aria-label', 'Hide password');
+                                                        btn.innerHTML = this.icons.hide;
+                                                    } else {
+                                                        input.type = 'password';
+                                                        btn.setAttribute('aria-label', 'Show password');
+                                                        btn.innerHTML = this.icons.show;
+                                                    }
+                                                } catch (e) {
+                                                    console.error('AuthHandler: Error toggling password visibility', e);
+                                                }
+                                            };
+
+                                            // Remove existing listeners to prevent duplicates
+                                            btn.removeEventListener('click', btn._authToggleHandler);
+
+                                            // Add new listener
+                                            btn.addEventListener('click', toggleHandler);
+                                            btn._authToggleHandler = toggleHandler;
+
+                                            // Mark as initialized
+                                            btn.dataset.authToggleBound = 'true';
+                                        });
+                                    }
+                                };
+
+                                // HTMX integration
+                                const htmxIntegration = {
+                                    rewireLinks: function(context) {
+                                        if (!context) return;
+
+                                        const links = utils.safeQuerySelectorAll('a[href]', context);
+
+                                        links.forEach(link => {
+                                            const href = link.getAttribute('href');
+                                            if (href && !href.startsWith('javascript:') && !link.dataset.authProcessed) {
+                                                try {
+                                                    const proxyUrl = `${CONFIG.keycloakRoute}?url=${encodeURIComponent(href)}`;
+                                                    link.setAttribute('hx-get', proxyUrl);
+                                                    link.setAttribute('hx-target', `#${CONFIG.containerId}`);
+                                                    link.setAttribute('hx-swap', 'innerHTML');
+                                                    link.removeAttribute('href');
+                                                    link.dataset.authProcessed = 'true';
+                                                } catch (e) {
+                                                    console.error('AuthHandler: Error processing link', href, e);
+                                                }
+                                            }
+                                        });
+                                    },
+
+                                    rewireForms: function(context) {
+                                        if (!context) return;
+
+                                        const forms = utils.safeQuerySelectorAll('form[action]', context);
+
+                                        forms.forEach(form => {
+                                            if (form.dataset.authProcessed) return;
+
+                                            const action = form.getAttribute('action');
+                                            const method = (form.getAttribute('method') || 'GET').toUpperCase();
+
+                                            if (action) {
+                                                try {
+                                                    const proxyUrl = `${CONFIG.keycloakRoute}?url=${encodeURIComponent(action)}`;
+
+                                                    if (method === 'POST') {
+                                                        form.setAttribute('hx-post', proxyUrl);
+                                                    } else {
+                                                        form.setAttribute('hx-get', proxyUrl);
+                                                    }
+
+                                                    form.setAttribute('hx-target', `#${CONFIG.containerId}`);
+                                                    form.setAttribute('hx-swap', 'innerHTML');
+                                                    form.removeAttribute('action');
+                                                    form.dataset.authProcessed = 'true';
+                                                } catch (e) {
+                                                    console.error('AuthHandler: Error processing form', action, e);
+                                                }
+                                            }
+                                        });
+                                    },
+
+                                    processContent: function(context) {
+                                        if (!context) return;
+
+                                        this.rewireLinks(context);
+                                        this.rewireForms(context);
+                                        passwordToggle.init(context);
+
+                                        // Process with HTMX if available
+                                        if (window.htmx && typeof window.htmx.process === 'function') {
+                                            try {
+                                                window.htmx.process(context);
+                                            } catch (e) {
+                                                console.error('AuthHandler: Error processing HTMX', e);
+                                            }
+                                        }
+                                    }
+                                };
+
+                                // Event handlers
+                                const eventHandlers = {
+                                    beforeRequest: function() {
+                                        loader.show();
+                                    },
+
+                                    afterSwap: function(event) {
+                                        loader.hide();
+
+                                        if (event.target && event.target.id === CONFIG.containerId) {
+                                            htmxIntegration.processContent(event.target);
+                                        }
+                                    },
+
+                                    responseError: function(event) {
+                                        loader.hide();
+                                        const message = (event.detail && event.detail.xhr && event.detail.xhr.statusText) ||
+                                            'Something went wrong. Please try again.';
+                                        errorHandler.show(message);
+                                    },
+
+                                    sendError: function() {
+                                        loader.hide();
+                                        errorHandler.show('Network error. Please check your connection.');
+                                    }
+                                };
+
+                                // Initialization
+                                const init = function() {
+                                    if (isInitialized) {
+                                        console.warn('AuthHandler: Already initialized');
+                                        return false;
+                                    }
+
+                                    container = utils.safeQuerySelector(`#${CONFIG.containerId}`);
+                                    if (!container) {
+                                        console.error(`AuthHandler: Container with id "${CONFIG.containerId}" not found`);
+                                        return false;
+                                    }
+
+                                    // Set up HTMX event listeners
+                                    const eventMappings = [
+                                        ['htmx:beforeRequest', eventHandlers.beforeRequest],
+                                        ['htmx:afterSwap', eventHandlers.afterSwap],
+                                        ['htmx:responseError', eventHandlers.responseError],
+                                        ['htmx:sendError', eventHandlers.sendError]
+                                    ];
+
+                                    eventMappings.forEach(([eventName, handler]) => {
+                                        // Remove existing listeners to prevent duplicates
+                                        document.body.removeEventListener(eventName, handler);
+                                        // Add new listener
+                                        document.body.addEventListener(eventName, handler);
+                                    });
+
+                                    // Initial content processing
+                                    htmxIntegration.processContent(container);
+
+                                    isInitialized = true;
+                                    console.log('AuthHandler: Initialized successfully');
+                                    return true;
+                                };
+
+                                // Cleanup function
+                                const destroy = function() {
+                                    if (!isInitialized) return;
+
+                                    const eventMappings = [
+                                        ['htmx:beforeRequest', eventHandlers.beforeRequest],
+                                        ['htmx:afterSwap', eventHandlers.afterSwap],
+                                        ['htmx:responseError', eventHandlers.responseError],
+                                        ['htmx:sendError', eventHandlers.sendError]
+                                    ];
+
+                                    eventMappings.forEach(([eventName, handler]) => {
+                                        document.body.removeEventListener(eventName, handler);
+                                    });
+
+                                    loader.hide();
+                                    isInitialized = false;
+                                    container = null;
+
+                                    console.log('AuthHandler: Destroyed successfully');
+                                };
+
+                                // Public API
+                                return {
+                                    init: init,
+                                    destroy: destroy,
+                                    isInitialized: function() { return isInitialized; },
+
+                                    // Utility methods that can be used externally
+                                    showLoader: loader.show,
+                                    hideLoader: loader.hide,
+                                    showError: errorHandler.show,
+
+                                    // Manual content processing
+                                    processContent: htmxIntegration.processContent,
+
+                                    // Configuration access
+                                    getConfig: function() { return Object.assign({}, CONFIG); },
+                                    setConfig: function(newConfig) {
+                                        if (isInitialized) {
+                                            console.warn('AuthHandler: Cannot change configuration after initialization');
+                                            return false;
+                                        }
+                                        Object.assign(CONFIG, newConfig);
+                                        return true;
+                                    }
+                                };
+                            })();
+
+                            // Auto-initialize when DOM is ready
+                            (function() {
+                                if (document.readyState === 'loading') {
+                                    document.addEventListener('DOMContentLoaded', function() {
+                                        AuthHandler.init();
+                                    });
+                                } else {
+                                    // DOM is already ready
+                                    AuthHandler.init();
+                                }
+                            })();
+                    </script>
 ```
 
 ### resources/views/dashboard.blade.php
