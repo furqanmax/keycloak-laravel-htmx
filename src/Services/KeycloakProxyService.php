@@ -12,7 +12,7 @@ class KeycloakProxyService
 {
     protected KeycloakService $keycloak;
     protected Client $httpClient;
-    protected ?CookieJar $cookieJar = null;
+    protected CookieJar $cookieJar;
 
     public function __construct(KeycloakService $keycloak)
     {
@@ -23,6 +23,7 @@ class KeycloakProxyService
             'allow_redirects' => false,
             'http_errors' => false,
         ]);
+        $this->initializeCookieJar();
     }
 
     /**
@@ -50,8 +51,8 @@ class KeycloakProxyService
                 $options
             );
 
-            // Save cookies back to session
-            $this->saveCookies();
+            // Update cookies in session
+            Session::put('keycloak_proxy_cookies', $this->cookieJar->toArray());
 
             // Handle redirects
             $finalUrl = $targetUrl;
@@ -79,7 +80,7 @@ class KeycloakProxyService
                 // Internal redirect within Keycloak
                 $finalUrl = $absoluteLocation;
                 $response = $this->httpClient->get($finalUrl, ['cookies' => $this->cookieJar]);
-                $this->saveCookies();
+                Session::put('keycloak_proxy_cookies', $this->cookieJar->toArray());
             }
 
             // Process and return HTML
@@ -105,14 +106,6 @@ class KeycloakProxyService
     {
         $cookies = Session::get('keycloak_proxy_cookies', []);
         $this->cookieJar = new CookieJar(false, $cookies);
-    }
-
-    /**
-     * Save cookies back to session
-     */
-    protected function saveCookies(): void
-    {
-        Session::put('keycloak_proxy_cookies', $this->cookieJar->toArray());
     }
 
     /**
@@ -221,7 +214,6 @@ class KeycloakProxyService
         $base = parse_url($baseUrl);
         $scheme = $base['scheme'] ?? 'https';
         $host = $base['host'] ?? '';
-        $path = $base['path'] ?? '/';
 
         // Protocol relative
         if (strpos($url, '//') === 0) {
@@ -234,8 +226,9 @@ class KeycloakProxyService
         }
 
         // Relative path
+        $path = $base['path'] ?? '/';
         $dir = rtrim(dirname($path), '/');
-        return $scheme . '://' . $host . ($dir ? $dir : '') . '/' . $url;
+        return $scheme . '://' . $host . ($dir ? $dir . '/' : '/') . ltrim($url, '/');
     }
 
     /**

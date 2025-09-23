@@ -1,34 +1,201 @@
-# Laravel Keycloak Example
+# Laravel Keycloak with HTMX Integration
 
-This is a complete example of integrating the Keycloak Auth SDK with a Laravel application.
+A seamless integration of Keycloak authentication with Laravel, enhanced with HTMX for dynamic, single-page application-like experiences.
+
+## Prerequisites
+
+- PHP 8.0 or higher
+- Laravel 9.x or 10.x
+- Node.js & NPM (for frontend assets)
+- Keycloak server (version 15 or later recommended)
 
 ## Installation
 
-1. Create a new Laravel project:
-```bash
-composer create-project laravel/laravel keycloak-laravel-app
-cd keycloak-laravel-app
-```
+1. Install the package via Composer:
 
-2. Install the Keycloak Auth SDK:
 ```bash
 composer require keycloak-auth/laravel
 ```
 
-3. Configure your `.env` file:
-```env
-KEYCLOAK_BASE_URL=https://auth.keycloak.com
-KEYCLOAK_REALM=realm-name
-KEYCLOAK_CLIENT_ID=client-id
-KEYCLOAK_CLIENT_SECRET=client-secret
-KEYCLOAK_REDIRECT_URI=http://localhost:8000/auth/callback //only change the host keep /auth/callback as it is
-KEYCLOAK_HTMX_ENABLED=true
-```
+2. Publish the configuration file:
 
-4. Publish the configuration:
 ```bash
 php artisan vendor:publish --tag=keycloak-config
 ```
+
+3. Configure your `.env` file with your Keycloak settings:
+
+```env
+KEYCLOAK_BASE_URL=https://auth.eshare.ai
+KEYCLOAK_REALM=leadnest-realm
+KEYCLOAK_CLIENT_ID=earnon
+KEYCLOAK_CLIENT_SECRET=Iu6vCpdNUoUGtlyMcAntfvSzMPC9lsOx
+KEYCLOAK_REDIRECT_URI=${APP_URL}/auth/callback
+KEYCLOAK_HTMX_ENABLED=true
+```
+
+## Frontend Setup
+
+### Required JavaScript Libraries
+
+Include these scripts in your main layout file (usually `resources/views/layouts/app.blade.php`):
+
+```html
+<!-- Required for HTMX -->
+<script src="https://unpkg.com/htmx.org@1.9.6"></script>
+
+<!-- Optional: Alpine.js for reactive components -->
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<!-- Optional: Hyperscript for enhanced interactivity -->
+<script src="https://unpkg.com/hyperscript.org@0.9.7"></script>
+
+<!-- Keycloak JS Adapter (required for direct client-side auth) -->
+<script src="https://${KEYCLOAK_BASE_URL}/js/keycloak.js"></script>
+```
+
+### HTMX Configuration
+
+Add this script to initialize HTMX and handle authentication states:
+
+```html
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize HTMX
+    htmx.defineExtension('auth-required', {
+        onEvent: function(name, evt) {
+            if (name === 'htmx:beforeRequest' && !isAuthenticated()) {
+                window.location.href = '{{ route("keycloak.login") }}';
+                return false;
+            }
+        }
+    });
+
+    // Check authentication status
+    function isAuthenticated() {
+        return {!! auth()->check() ? 'true' : 'false' !!};
+    }
+});
+</script>
+```
+
+### Example Login Button
+
+```html
+<!-- Login Button -->
+<div hx-get="{{ route('keycloak.login') }}" 
+     hx-trigger="click"
+     hx-target="#auth-container"
+     hx-swap="innerHTML"
+     class="cursor-pointer">
+    Login with Keycloak
+</div>
+
+<!-- Auth Container (will be replaced with login form) -->
+<div id="auth-container"></div>
+```
+
+## Configuration Options
+
+Edit `config/keycloak.php` to customize the behavior:
+
+```php
+return [
+    'base_url' => env('KEYCLOAK_BASE_URL'),
+    'realm' => env('KEYCLOAK_REALM'),
+    'client_id' => env('KEYCLOAK_CLIENT_ID'),
+    'client_secret' => env('KEYCLOAK_CLIENT_SECRET'),
+    'redirect_uri' => env('KEYCLOAK_REDIRECT_URI'),
+    'htmx_enabled' => env('KEYCLOAK_HTMX_ENABLED', true),
+    
+    // Enable/disable features that should be shown in the UI
+    'features' => [
+        'registration' => true,  // Show registration link
+        'forgot_password' => true,  // Show forgot password link
+        'remember_me' => true,  // Show remember me checkbox
+        'social_login' => true,  // Show social login buttons if configured in Keycloak
+    ],
+    
+    // Routes configuration
+    'routes' => [
+        'login' => 'keycloak.login',
+        'logout' => 'keycloak.logout',
+        'register' => 'keycloak.register',
+        'callback' => 'keycloak.callback',
+    ],
+];
+```
+
+## Available Routes
+
+| Method | URI | Action | Description |
+|--------|-----|--------|-------------|
+| GET | /auth/login | KeycloakAuthController@login | Initiate login |
+| GET | /auth/callback | KeycloakAuthController@callback | OAuth callback URL |
+| POST | /auth/logout | KeycloakAuthController@logout | Logout user |
+| GET | /auth/user | KeycloakAuthController@user | Get current user info |
+| POST | /auth/refresh | KeycloakAuthController@refresh | Refresh access token |
+
+## Middleware
+
+Protect your routes using the included middleware:
+
+```php
+// Single route
+Route::get('/dashboard', function () {
+    return view('dashboard');
+})->middleware('keycloak.auth');
+
+// Route group
+Route::middleware(['keycloak.auth'])->group(function () {
+    // Protected routes here
+});
+```
+
+## Customization
+
+### Custom Views
+
+Publish the views to customize them:
+
+```bash
+php artisan vendor:publish --tag=keycloak-views
+```
+
+### Events
+
+Listen for these events in your application:
+
+```php
+// In your EventServiceProvider
+protected $listen = [
+    'keycloak.login' => [
+        YourLoginListener::class,
+    ],
+    'keycloak.logout' => [
+        YourLogoutListener::class,
+    ],
+];
+```
+
+## Troubleshooting
+
+- **HTMX not working**: Ensure you've included the HTMX script before your custom scripts
+- **CORS issues**: Configure CORS in your Keycloak realm settings
+- **Session issues**: Verify your session driver in `config/session.php`
+- **HTTPS required**: Make sure your application is served over HTTPS in production
+
+## Security
+
+- Always use HTTPS in production
+- Keep your client secret secure
+- Regularly rotate your client secrets
+- Implement proper session handling
+- Follow Keycloak's security best practices
+
+## License
+
+This package is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
 
 ## Example Routes
 

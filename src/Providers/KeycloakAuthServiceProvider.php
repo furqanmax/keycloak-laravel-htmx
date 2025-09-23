@@ -59,16 +59,6 @@ class KeycloakAuthServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__ . '/../../resources/views' => resource_path('views/vendor/keycloak-auth'),
             ], 'keycloak-views');
-
-            // Publish assets
-            $this->publishes([
-                __DIR__ . '/../../resources/assets' => public_path('vendor/keycloak-auth'),
-            ], 'keycloak-assets');
-
-            // Publish migrations
-            $this->publishes([
-                __DIR__ . '/../../database/migrations' => database_path('migrations'),
-            ], 'keycloak-migrations');
         }
 
         // Load views
@@ -76,7 +66,6 @@ class KeycloakAuthServiceProvider extends ServiceProvider
 
         // Load routes
         $this->loadRoutesFrom(__DIR__ . '/../../routes/web.php');
-//        $this->loadRoutesFrom(__DIR__ . '/../../routes/api.php');
 
         // Register middleware
         $router = $this->app['router'];
