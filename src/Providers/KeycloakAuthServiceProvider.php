@@ -63,6 +63,11 @@ class KeycloakAuthServiceProvider extends ServiceProvider
                 __DIR__.'/../../resources/css' => public_path('vendor/keycloak-auth/css'),
 //                __DIR__.'/../../resources/js' => public_path('vendor/keycloak-auth/js'),
             ], 'public');
+
+            // Publish KeycloakProxyService
+            $this->publishes([
+                __DIR__ . '/../Services/KeycloakProxyService.php' => app_path('Services/KeycloakProxyService.php'),
+            ], 'keycloak-services');
         }
 
         // Load views

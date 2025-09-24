@@ -18,6 +18,7 @@ composer require maxjack/keycloak-auth
 ```
 
 2. Configure your `.env` file with your Keycloak settings:
+Note : KEYCLOAK_DEFAULT_REDIRECT assign the path where you want to redirect after successful login
 
 ```env
 KEYCLOAK_BASE_URL=https://auth.keycloak.ai
@@ -26,7 +27,7 @@ KEYCLOAK_CLIENT_ID=client
 KEYCLOAK_CLIENT_SECRET=secret
 KEYCLOAK_REDIRECT_URI=${APP_URL}/auth/callback
 KEYCLOAK_HTMX_ENABLED=true
-KEYCLOAK_DEFAULT_REDIRECT=/dashboard //redirect after successful login
+KEYCLOAK_DEFAULT_REDIRECT=/dashboard
 ```
 note : add the config to env file before executing the next step
 
@@ -36,6 +37,8 @@ note : add the config to env file before executing the next step
 php artisan vendor:publish --tag=keycloak-config
 
 php artisan vendor:publish --tag=public
+
+php artisan vendor:publish --tag=keycloak-services
 ```
 
 
@@ -73,22 +76,21 @@ Include these scripts where you want to show the login  (usually `resources/view
 ### resources/views/welcome.blade.php
 ```blade
   <div id="kc-container"
-         class="kc-container"
-         hx-get="{{ route('keycloak.proxy') }}"
-         hx-trigger="load"
-         hx-target="#kc-container"
-         hx-swap="innerHTML">
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary mb-3" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="text-muted">Loading secure login...</p>
-        </div>
-    </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-     
-    <script>
+                             class="kc-container position-relative"
+                             hx-get="{{ route('keycloak.proxy') }}"
+                             hx-trigger="load"
+                             hx-target="#kc-container"
+                             hx-swap="innerHTML">
+                            <div class="text-center py-5" id="kc-loader">
+                                <div class="spinner-border text-primary mb-3" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="text-muted">Loading secure login...</p>
+                            </div>
+                        </div>
+
+                        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+                        <script hx-ext="ignore">
                             // Authentication Handler - Namespace to prevent conflicts
                             window.AuthHandler = (function() {
                                 'use strict';
@@ -104,6 +106,106 @@ Include these scripts where you want to show the login  (usually `resources/view
                                     zIndex: '1050',
                                     keycloakRoute: '{{ route("keycloak.proxy") }}'
                                 };
+
+
+                                // CSRF token injection
+                                const csrfHandler = {
+                                    addCsrfToForms: function(root = document) {
+                                        const tokenMeta = utils.safeQuerySelector('meta[name="csrf-token"]');
+                                        if (!tokenMeta) return;
+                                        const csrfToken = tokenMeta.getAttribute("content");
+
+                                        utils.safeQuerySelectorAll("form", root).forEach(form => {
+                                            if (!form.querySelector("input[name='_token']")) {
+                                                let hiddenInput = document.createElement("input");
+                                                hiddenInput.type = "hidden";
+                                                hiddenInput.name = "_token";
+                                                hiddenInput.value = csrfToken;
+                                                form.appendChild(hiddenInput);
+                                            }
+                                        });
+                                    }
+                                };
+
+                                // HTMX integration
+                                const htmxIntegration = {
+                                    rewireLinks: function(context) {
+                                        if (!context) return;
+
+                                        const links = utils.safeQuerySelectorAll('a[href]', context);
+
+                                        links.forEach(link => {
+                                            const href = link.getAttribute('href');
+                                            if (href && !href.startsWith('javascript:') && !link.dataset.authProcessed) {
+                                                try {
+                                                    const proxyUrl = `${CONFIG.keycloakRoute}?url=${encodeURIComponent(href)}`;
+                                                    link.setAttribute('hx-get', proxyUrl);
+                                                    link.setAttribute('hx-target', `#${CONFIG.containerId}`);
+                                                    link.setAttribute('hx-swap', 'innerHTML');
+                                                    link.removeAttribute('href');
+                                                    link.classList.add('keycloak-link');
+                                                    link.dataset.authProcessed = 'true';
+                                                } catch (e) {
+                                                    console.error('AuthHandler: Error processing link', href, e);
+                                                }
+                                            }
+                                        });
+                                    },
+
+                                    rewireForms: function(context) {
+                                        if (!context) return;
+
+                                        const forms = utils.safeQuerySelectorAll('form[action]', context);
+
+                                        csrfHandler.addCsrfToForms(context);
+
+
+                                        forms.forEach(form => {
+                                            if (form.dataset.authProcessed) return;
+
+                                            const action = form.getAttribute('action');
+                                            const method = (form.getAttribute('method') || 'GET').toUpperCase();
+
+                                            if (action) {
+                                                try {
+                                                    console.log(CONFIG.keycloakRoute+'?url='+encodeURIComponent(action))
+                                                    const proxyUrl = `${CONFIG.keycloakRoute}?url=${encodeURIComponent(action)}`;
+
+                                                    if (method === 'POST') {
+                                                        form.setAttribute('hx-post', proxyUrl);
+                                                    } else {
+                                                        form.setAttribute('hx-get', proxyUrl);
+                                                    }
+
+                                                    form.setAttribute('hx-target', `#${CONFIG.containerId}`);
+                                                    form.setAttribute('hx-swap', 'innerHTML');
+                                                    form.removeAttribute('action');
+                                                    form.dataset.authProcessed = 'true';
+                                                } catch (e) {
+                                                    console.error('AuthHandler: Error processing form', action, e);
+                                                }
+                                            }
+                                        });
+                                    },
+
+                                    processContent: function(context) {
+                                        if (!context) return;
+
+                                        this.rewireLinks(context);
+                                        this.rewireForms(context);
+                                        passwordToggle.init(context);
+
+                                        // Process with HTMX if available
+                                        if (window.htmx && typeof window.htmx.process === 'function') {
+                                            try {
+                                                window.htmx.process(context);
+                                            } catch (e) {
+                                                console.error('AuthHandler: Error processing HTMX', e);
+                                            }
+                                        }
+                                    }
+                                };
+
 
                                 // Private utility functions
                                 const utils = {
@@ -311,79 +413,6 @@ Include these scripts where you want to show the login  (usually `resources/view
                                     }
                                 };
 
-                                // HTMX integration
-                                const htmxIntegration = {
-                                    rewireLinks: function(context) {
-                                        if (!context) return;
-
-                                        const links = utils.safeQuerySelectorAll('a[href]', context);
-
-                                        links.forEach(link => {
-                                            const href = link.getAttribute('href');
-                                            if (href && !href.startsWith('javascript:') && !link.dataset.authProcessed) {
-                                                try {
-                                                    const proxyUrl = `${CONFIG.keycloakRoute}?url=${encodeURIComponent(href)}`;
-                                                    link.setAttribute('hx-get', proxyUrl);
-                                                    link.setAttribute('hx-target', `#${CONFIG.containerId}`);
-                                                    link.setAttribute('hx-swap', 'innerHTML');
-                                                    link.removeAttribute('href');
-                                                    link.dataset.authProcessed = 'true';
-                                                } catch (e) {
-                                                    console.error('AuthHandler: Error processing link', href, e);
-                                                }
-                                            }
-                                        });
-                                    },
-
-                                    rewireForms: function(context) {
-                                        if (!context) return;
-
-                                        const forms = utils.safeQuerySelectorAll('form[action]', context);
-
-                                        forms.forEach(form => {
-                                            if (form.dataset.authProcessed) return;
-
-                                            const action = form.getAttribute('action');
-                                            const method = (form.getAttribute('method') || 'GET').toUpperCase();
-
-                                            if (action) {
-                                                try {
-                                                    const proxyUrl = `${CONFIG.keycloakRoute}?url=${encodeURIComponent(action)}`;
-
-                                                    if (method === 'POST') {
-                                                        form.setAttribute('hx-post', proxyUrl);
-                                                    } else {
-                                                        form.setAttribute('hx-get', proxyUrl);
-                                                    }
-
-                                                    form.setAttribute('hx-target', `#${CONFIG.containerId}`);
-                                                    form.setAttribute('hx-swap', 'innerHTML');
-                                                    form.removeAttribute('action');
-                                                    form.dataset.authProcessed = 'true';
-                                                } catch (e) {
-                                                    console.error('AuthHandler: Error processing form', action, e);
-                                                }
-                                            }
-                                        });
-                                    },
-
-                                    processContent: function(context) {
-                                        if (!context) return;
-
-                                        this.rewireLinks(context);
-                                        this.rewireForms(context);
-                                        passwordToggle.init(context);
-
-                                        // Process with HTMX if available
-                                        if (window.htmx && typeof window.htmx.process === 'function') {
-                                            try {
-                                                window.htmx.process(context);
-                                            } catch (e) {
-                                                console.error('AuthHandler: Error processing HTMX', e);
-                                            }
-                                        }
-                                    }
-                                };
 
                                 // Event handlers
                                 const eventHandlers = {
