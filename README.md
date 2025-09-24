@@ -28,12 +28,13 @@ php artisan vendor:publish --tag=public
 3. Configure your `.env` file with your Keycloak settings:
 
 ```env
-KEYCLOAK_BASE_URL=https://auth.eshare.ai
-KEYCLOAK_REALM=leadnest-realm
-KEYCLOAK_CLIENT_ID=earnon
-KEYCLOAK_CLIENT_SECRET=Iu6vCpdNUoUGtlyMcAntfvSzMPC9lsOx
+KEYCLOAK_BASE_URL=https://auth.keycloak.ai
+KEYCLOAK_REALM=realm
+KEYCLOAK_CLIENT_ID=client
+KEYCLOAK_CLIENT_SECRET=secret
 KEYCLOAK_REDIRECT_URI=${APP_URL}/auth/callback
 KEYCLOAK_HTMX_ENABLED=true
+KEYCLOAK_DEFAULT_REDIRECT=/dashboard //redirect after successful login
 ```
 
 ## Frontend Setup
@@ -58,35 +59,9 @@ Include these scripts in your main layout file (usually `resources/views/layouts
 <!-- CSS -->
 <link rel="stylesheet" href="{{ asset('vendor/keycloak-auth/css/keycloak-styles.css') }}">
 
-<!-- JS -->
-<script src="{{ asset('vendor/keycloak-auth/js/main.js') }}"></script>
-
 ```
 
-### HTMX Configuration
 
-Add this script to initialize HTMX and handle authentication states:
-
-```html
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize HTMX
-    htmx.defineExtension('auth-required', {
-        onEvent: function(name, evt) {
-            if (name === 'htmx:beforeRequest' && !isAuthenticated()) {
-                window.location.href = '{{ route("keycloak.login") }}';
-                return false;
-            }
-        }
-    });
-
-    // Check authentication status
-    function isAuthenticated() {
-        return {!! auth()->check() ? 'true' : 'false' !!};
-    }
-});
-</script>
-```
 
 ### Example Login Button
 
@@ -104,145 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <div id="auth-container"></div>
 ```
 
-## Configuration Options
 
-Edit `config/keycloak.php` to customize the behavior:
-
-```php
-return [
-    'base_url' => env('KEYCLOAK_BASE_URL'),
-    'realm' => env('KEYCLOAK_REALM'),
-    'client_id' => env('KEYCLOAK_CLIENT_ID'),
-    'client_secret' => env('KEYCLOAK_CLIENT_SECRET'),
-    'redirect_uri' => env('KEYCLOAK_REDIRECT_URI'),
-    'htmx_enabled' => env('KEYCLOAK_HTMX_ENABLED', true),
-    
-    // Enable/disable features that should be shown in the UI
-    'features' => [
-        'registration' => true,  // Show registration link
-        'forgot_password' => true,  // Show forgot password link
-        'remember_me' => true,  // Show remember me checkbox
-        'social_login' => true,  // Show social login buttons if configured in Keycloak
-    ],
-    
-    // Routes configuration
-    'routes' => [
-        'login' => 'keycloak.login',
-        'logout' => 'keycloak.logout',
-        'register' => 'keycloak.register',
-        'callback' => 'keycloak.callback',
-    ],
-];
-```
-
-## Available Routes
-
-| Method | URI | Action | Description |
-|--------|-----|--------|-------------|
-| GET | /auth/login | KeycloakAuthController@login | Initiate login |
-| GET | /auth/callback | KeycloakAuthController@callback | OAuth callback URL |
-| POST | /auth/logout | KeycloakAuthController@logout | Logout user |
-| GET | /auth/user | KeycloakAuthController@user | Get current user info |
-| POST | /auth/refresh | KeycloakAuthController@refresh | Refresh access token |
-
-## Middleware
-
-Protect your routes using the included middleware:
-
-```php
-// Single route
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware('keycloak.auth');
-
-// Route group
-Route::middleware(['keycloak.auth'])->group(function () {
-    // Protected routes here
-});
-```
-
-## Customization
-
-### Custom Views
-
-Publish the views to customize them:
-
-```bash
-php artisan vendor:publish --tag=keycloak-views
-```
-
-### Events
-
-Listen for these events in your application:
-
-```php
-// In your EventServiceProvider
-protected $listen = [
-    'keycloak.login' => [
-        YourLoginListener::class,
-    ],
-    'keycloak.logout' => [
-        YourLogoutListener::class,
-    ],
-];
-```
-
-## Troubleshooting
-
-- **HTMX not working**: Ensure you've included the HTMX script before your custom scripts
-- **CORS issues**: Configure CORS in your Keycloak realm settings
-- **Session issues**: Verify your session driver in `config/session.php`
-- **HTTPS required**: Make sure your application is served over HTTPS in production
-
-## Security
-
-- Always use HTTPS in production
-- Keep your client secret secure
-- Regularly rotate your client secrets
-- Implement proper session handling
-- Follow Keycloak's security best practices
-
-## License
-
-This package is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-
-## Example Routes
-
-```php
-// routes/web.php
-<?php
-
-use Illuminate\Support\Facades\Route;
-use KeycloakAuth\Laravel\Facades\KeycloakAuth;
-
-// Public routes
-Route::get('/', function () {
-    return view('welcome');
-});
-
-// Protected routes
-Route::middleware('keycloak.auth')->group(function () {
-    Route::get('/dashboard', function () {
-        $user = KeycloakAuth::user();
-        return view('dashboard', compact('user'));
-    });
-    
-    Route::get('/profile', function () {
-        return view('profile', ['user' => KeycloakAuth::user()]);
-    });
-});
-
-// Admin routes (role-based)
-Route::middleware(['keycloak.auth'])->group(function () {
-    Route::get('/admin', function () {
-        $user = KeycloakAuth::user();
-        if (!in_array('admin', $user['roles'])) {
-            abort(403, 'Unauthorized');
-        }
-        return view('admin');
-    });
-});
-```
 
 ## Example Views
 
@@ -685,6 +522,176 @@ Route::middleware(['keycloak.auth'])->group(function () {
                                 }
                             })();
                     </script>
+```
+
+
+---
+### Stop here setup is done
+---
+### HTMX Configuration
+
+Add this script to initialize HTMX and handle authentication states:
+
+```html
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize HTMX
+    htmx.defineExtension('auth-required', {
+        onEvent: function(name, evt) {
+            if (name === 'htmx:beforeRequest' && !isAuthenticated()) {
+                window.location.href = '{{ route("keycloak.login") }}';
+                return false;
+            }
+        }
+    });
+
+    // Check authentication status
+    function isAuthenticated() {
+        return {!! auth()->check() ? 'true' : 'false' !!};
+    }
+});
+</script>
+```
+
+
+## Configuration Options
+
+Edit `config/keycloak.php` to customize the behavior:
+
+```php
+return [
+    'base_url' => env('KEYCLOAK_BASE_URL'),
+    'realm' => env('KEYCLOAK_REALM'),
+    'client_id' => env('KEYCLOAK_CLIENT_ID'),
+    'client_secret' => env('KEYCLOAK_CLIENT_SECRET'),
+    'redirect_uri' => env('KEYCLOAK_REDIRECT_URI'),
+    'htmx_enabled' => env('KEYCLOAK_HTMX_ENABLED', true),
+    
+    // Enable/disable features that should be shown in the UI
+    'features' => [
+        'registration' => true,  // Show registration link
+        'forgot_password' => true,  // Show forgot password link
+        'remember_me' => true,  // Show remember me checkbox
+        'social_login' => true,  // Show social login buttons if configured in Keycloak
+    ],
+    
+    // Routes configuration
+    'routes' => [
+        'login' => 'keycloak.login',
+        'logout' => 'keycloak.logout',
+        'register' => 'keycloak.register',
+        'callback' => 'keycloak.callback',
+    ],
+];
+```
+
+## Available Routes
+
+| Method | URI | Action | Description |
+|--------|-----|--------|-------------|
+| GET | /auth/login | KeycloakAuthController@login | Initiate login |
+| GET | /auth/callback | KeycloakAuthController@callback | OAuth callback URL |
+| POST | /auth/logout | KeycloakAuthController@logout | Logout user |
+| GET | /auth/user | KeycloakAuthController@user | Get current user info |
+| POST | /auth/refresh | KeycloakAuthController@refresh | Refresh access token |
+
+## Middleware
+
+Protect your routes using the included middleware:
+
+```php
+// Single route
+Route::get('/dashboard', function () {
+    return view('dashboard');
+})->middleware('keycloak.auth');
+
+// Route group
+Route::middleware(['keycloak.auth'])->group(function () {
+    // Protected routes here
+});
+```
+
+## Customization
+
+### Custom Views
+
+Publish the views to customize them:
+
+```bash
+php artisan vendor:publish --tag=keycloak-views
+```
+
+### Events
+
+Listen for these events in your application:
+
+```php
+// In your EventServiceProvider
+protected $listen = [
+    'keycloak.login' => [
+        YourLoginListener::class,
+    ],
+    'keycloak.logout' => [
+        YourLogoutListener::class,
+    ],
+];
+```
+
+## Troubleshooting
+
+- **HTMX not working**: Ensure you've included the HTMX script before your custom scripts
+- **CORS issues**: Configure CORS in your Keycloak realm settings
+- **Session issues**: Verify your session driver in `config/session.php`
+- **HTTPS required**: Make sure your application is served over HTTPS in production
+
+## Security
+
+- Always use HTTPS in production
+- Keep your client secret secure
+- Regularly rotate your client secrets
+- Implement proper session handling
+- Follow Keycloak's security best practices
+
+## License
+
+This package is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Example Routes
+
+```php
+// routes/web.php
+<?php
+
+use Illuminate\Support\Facades\Route;
+use KeycloakAuth\Laravel\Facades\KeycloakAuth;
+
+// Public routes
+Route::get('/', function () {
+    return view('welcome');
+});
+
+// Protected routes
+Route::middleware('keycloak.auth')->group(function () {
+    Route::get('/dashboard', function () {
+        $user = KeycloakAuth::user();
+        return view('dashboard', compact('user'));
+    });
+    
+    Route::get('/profile', function () {
+        return view('profile', ['user' => KeycloakAuth::user()]);
+    });
+});
+
+// Admin routes (role-based)
+Route::middleware(['keycloak.auth'])->group(function () {
+    Route::get('/admin', function () {
+        $user = KeycloakAuth::user();
+        if (!in_array('admin', $user['roles'])) {
+            abort(403, 'Unauthorized');
+        }
+        return view('admin');
+    });
+});
 ```
 
 ### resources/views/dashboard.blade.php
