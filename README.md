@@ -17,15 +17,7 @@ A seamless integration of Keycloak authentication with Laravel, enhanced with HT
 composer require maxjack/keycloak-auth
 ```
 
-2. Publish the configuration file:
-
-```bash
-php artisan vendor:publish --tag=keycloak-config
-
-php artisan vendor:publish --tag=public
-```
-
-3. Configure your `.env` file with your Keycloak settings:
+2. Configure your `.env` file with your Keycloak settings:
 
 ```env
 KEYCLOAK_BASE_URL=https://auth.keycloak.ai
@@ -36,6 +28,17 @@ KEYCLOAK_REDIRECT_URI=${APP_URL}/auth/callback
 KEYCLOAK_HTMX_ENABLED=true
 KEYCLOAK_DEFAULT_REDIRECT=/dashboard //redirect after successful login
 ```
+note : add the config to env file before executing the next step
+
+3. Publish the configuration file:
+
+```bash
+php artisan vendor:publish --tag=keycloak-config
+
+php artisan vendor:publish --tag=public
+```
+
+
 
 ## Frontend Setup
 
@@ -63,25 +66,9 @@ Include these scripts in your main layout file (usually `resources/views/layouts
 
 
 
-### Example Login Button
-
-```html
-<!-- Login Button -->
-<div hx-get="{{ route('keycloak.login') }}" 
-     hx-trigger="click"
-     hx-target="#auth-container"
-     hx-swap="innerHTML"
-     class="cursor-pointer">
-    Login with Keycloak
-</div>
-
-<!-- Auth Container (will be replaced with login form) -->
-<div id="auth-container"></div>
-```
-
-
 
 ## Example Views
+Include these scripts where you want to show the login  (usually `resources/views/welcome.blade.php`):
 
 ### resources/views/welcome.blade.php
 ```blade
@@ -528,6 +515,26 @@ Include these scripts in your main layout file (usually `resources/views/layouts
 ---
 ### Stop here setup is done
 ---
+
+
+### Example Login Button
+
+```html
+<!-- Login Button -->
+<div hx-get="{{ route('keycloak.login') }}" 
+     hx-trigger="click"
+     hx-target="#auth-container"
+     hx-swap="innerHTML"
+     class="cursor-pointer">
+    Login with Keycloak
+</div>
+
+<!-- Auth Container (will be replaced with login form) -->
+<div id="auth-container"></div>
+```
+
+
+
 ### HTMX Configuration
 
 Add this script to initialize HTMX and handle authentication states:
