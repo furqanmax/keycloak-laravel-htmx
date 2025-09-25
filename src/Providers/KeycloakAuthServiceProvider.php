@@ -66,7 +66,7 @@ class KeycloakAuthServiceProvider extends ServiceProvider
 
             // Publish KeycloakProxyService
             $this->publishes([
-                __DIR__ . '/../Controllers/KeycloakAuthController.php' => app_path('Http/Controllers/KeycloakAuthController.php'),
+                __DIR__ . '/../Http/Controllers/KeycloakAuthController.php' => app_path('Http/Controllers/KeycloakAuthController.php'),
             ], 'keycloak-controller');
         }
 
