@@ -38,7 +38,7 @@ php artisan vendor:publish --tag=keycloak-config
 
 php artisan vendor:publish --tag=public
 
-php artisan vendor:publish --tag=keycloak-services
+php artisan vendor:publish --tag=keycloak-controller
 ```
 
 
