@@ -123,6 +123,8 @@ class KeycloakProxy {
         document.body.addEventListener("htmx:beforeRequest", (event) => {
             if (this._isTargetingContainer(event)) {
                 this._createLoader();
+                // Ensure cookies are included in HTMX requests
+                this._ensureCookiesInRequest(event);
             }
         });
 
@@ -151,6 +153,27 @@ class KeycloakProxy {
 
     _isTargetingContainer(event) {
         return event.target && event.target.id === this.containerId;
+    }
+    
+    _ensureCookiesInRequest(event) {
+        // Ensure HTMX includes credentials (cookies) in requests
+        if (event.detail && event.detail.xhr) {
+            event.detail.xhr.withCredentials = true;
+        }
+        
+        // Add custom headers if needed
+        if (!event.detail.headers) {
+            event.detail.headers = {};
+        }
+        
+        // Ensure credentials are included
+        event.detail.headers['X-Requested-With'] = 'XMLHttpRequest';
+        
+        // Get any preserved Keycloak cookies from sessionStorage
+        const preservedCookies = sessionStorage.getItem('keycloak_cookies');
+        if (preservedCookies) {
+            event.detail.headers['X-Keycloak-Cookies'] = preservedCookies;
+        }
     }
 
     destroy() {

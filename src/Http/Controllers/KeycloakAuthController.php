@@ -37,9 +37,33 @@ class KeycloakAuthController extends Controller
             );
         }
 
-        return config('keycloak.auth.htmx_enabled', false)
-            ? view('keycloak-auth::login')
-            : redirect($this->keycloak->getAuthorizationUrl());
+        // For HTMX requests, we need to handle cookies differently
+        if (config('keycloak.auth.htmx_enabled', false)) {
+            // Store any existing Keycloak cookies before showing login
+            $this->preserveKeycloakCookies($request);
+            return view('keycloak-auth::login');
+        }
+        
+        return redirect($this->keycloak->getAuthorizationUrl());
+    }
+    
+    /**
+     * Preserve Keycloak cookies for social login flow
+     */
+    protected function preserveKeycloakCookies(Request $request): void
+    {
+        $keycloakCookies = [];
+        $importantCookies = ['KC_RESTART', 'AUTH_SESSION_ID', 'AUTH_SESSION_ID_LEGACY'];
+        
+        foreach ($importantCookies as $cookieName) {
+            if ($value = $request->cookie($cookieName)) {
+                $keycloakCookies[$cookieName] = $value;
+            }
+        }
+        
+        if (!empty($keycloakCookies)) {
+            Session::put('preserved_keycloak_cookies', $keycloakCookies);
+        }
     }
 
     /**

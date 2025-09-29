@@ -22,6 +22,7 @@ class KeycloakProxyService
             'verify' => true,
             'allow_redirects' => false,
             'http_errors' => false,
+            'cookies' => true, // Enable cookie handling
         ]);
         $this->initializeCookieJar();
     }
@@ -33,6 +34,13 @@ class KeycloakProxyService
     {
         // Initialize cookie jar from session
         $this->initializeCookieJar();
+        
+        // Check if returning from social login
+        if (Session::get('keycloak_social_login')) {
+            Session::forget('keycloak_social_login');
+            // Restore cookies from session for social login continuation
+            $this->restoreKeycloakSession();
+        }
 
         $targetUrl = $this->determineTargetUrl($request);
 
@@ -73,8 +81,34 @@ class KeycloakProxyService
 
                 // Check if this is an external redirect (social login)
                 if ($this->isExternalRedirect($absoluteLocation)) {
-                    return response('', 200)
+                    // Save cookies before redirecting to external provider
+                    Session::put('keycloak_proxy_cookies', $this->cookieJar->toArray());
+                    Session::put('keycloak_social_login', true);
+                    Session::save(); // Force session save
+                    
+                    // For social login, we need to preserve the Keycloak session
+                    // Set cookies in the response that will be sent back to the browser
+                    $response = response('', 200)
                         ->header('HX-Redirect', $absoluteLocation);
+                    
+                    // Add Keycloak cookies to the response
+                    foreach ($this->cookieJar->toArray() as $cookie) {
+                        if (isset($cookie['Name']) && isset($cookie['Value'])) {
+                            $response->cookie(
+                                $cookie['Name'],
+                                $cookie['Value'],
+                                0, // session cookie
+                                $cookie['Path'] ?? '/',
+                                $cookie['Domain'] ?? null,
+                                $cookie['Secure'] ?? true,
+                                $cookie['HttpOnly'] ?? true,
+                                false, // raw
+                                $cookie['SameSite'] ?? 'Lax'
+                            );
+                        }
+                    }
+                    
+                    return $response;
                 }
 
                 // Internal redirect within Keycloak
@@ -104,8 +138,77 @@ class KeycloakProxyService
      */
     protected function initializeCookieJar(): void
     {
+        // Get cookies from session or create persistent cookie jar
         $cookies = Session::get('keycloak_proxy_cookies', []);
-        $this->cookieJar = new CookieJar(false, $cookies);
+        
+        // Create cookie jar with strict mode disabled to allow third-party cookies
+        // This is crucial for social login providers
+        $this->cookieJar = new CookieJar(true, $cookies);
+        
+        // Add any missing Keycloak session cookies
+        $this->ensureKeycloakSessionCookies();
+    }
+    
+    /**
+     * Ensure Keycloak session cookies are preserved
+     */
+    protected function ensureKeycloakSessionCookies(): void
+    {
+        // Get existing Keycloak cookies from browser if available
+        $keycloakDomain = parse_url(config('keycloak.base_url'), PHP_URL_HOST);
+        
+        // Important Keycloak cookies that must be preserved
+        $requiredCookies = [
+            'AUTH_SESSION_ID',
+            'AUTH_SESSION_ID_LEGACY',
+            'KC_RESTART',
+            'KEYCLOAK_IDENTITY',
+            'KEYCLOAK_SESSION',
+            'KEYCLOAK_SESSION_LEGACY'
+        ];
+        
+        foreach ($requiredCookies as $cookieName) {
+            // Check if cookie exists in request
+            if (request()->cookie($cookieName)) {
+                // Add to cookie jar if not already present
+                $this->cookieJar->setCookie(new \GuzzleHttp\Cookie\SetCookie([
+                    'Name' => $cookieName,
+                    'Value' => request()->cookie($cookieName),
+                    'Domain' => $keycloakDomain,
+                    'Path' => '/',
+                    'Secure' => true,
+                    'HttpOnly' => true,
+                    'SameSite' => 'None' // Allow cross-site for OAuth flow
+                ]));
+            }
+        }
+    }
+    
+    /**
+     * Restore Keycloak session after social login
+     */
+    protected function restoreKeycloakSession(): void
+    {
+        // Restore all cookies from session
+        $savedCookies = Session::get('keycloak_proxy_cookies', []);
+        
+        if (!empty($savedCookies)) {
+            // Recreate cookie jar with saved cookies
+            $this->cookieJar = new CookieJar(true, $savedCookies);
+            
+            // Ensure domain and path are set correctly for all cookies
+            $keycloakDomain = parse_url(config('keycloak.base_url'), PHP_URL_HOST);
+            
+            foreach ($this->cookieJar->toArray() as $cookie) {
+                // Update domain if needed
+                if (!isset($cookie['Domain']) || $cookie['Domain'] !== $keycloakDomain) {
+                    $cookie['Domain'] = $keycloakDomain;
+                    $cookie['Path'] = '/';
+                    $cookie['Secure'] = true;
+                    $cookie['SameSite'] = 'None';
+                }
+            }
+        }
     }
 
     /**

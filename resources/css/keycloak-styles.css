@@ -395,3 +395,18 @@ input[aria-invalid="true"]:focus {
 .pf-m-error{
     color: hsl(0 84.2% 60.2%);
 }
+
+/* Make HTMX-processed links behave like real links */
+.keycloak-link {
+    cursor: pointer;
+    color: hsl(221.2 83.2% 53.3%) !important;
+    text-decoration: none;
+}
+.keycloak-link:hover {
+    color: var(--bs-link-hover-color, #0a58ca);
+}
+
+
+a[hx-get], a[hx-post], a[hx-delete], a[hx-put] {
+    cursor: pointer;
+}
