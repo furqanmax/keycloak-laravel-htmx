@@ -115,10 +115,38 @@
             container.querySelectorAll('a[href]').forEach(a => {
                 const href = a.getAttribute('href');
                 if (href && !href.startsWith('javascript:')) {
-                    a.setAttribute('hx-get', `{{ route('keycloak.proxy') }}?url=${encodeURIComponent(href)}`);
-                    a.setAttribute('hx-target', '#kc-container');
-                    a.setAttribute('hx-swap', 'innerHTML');
-                    a.removeAttribute('href');
+                    // Check if this is a social login link (contains broker or social provider)
+                    if (href.includes('/broker/') || href.includes('kc_idp_hint=')) {
+                        // For social login, keep as regular link but intercept click
+                        a.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            // Store current state in session storage
+                            sessionStorage.setItem('keycloak_return', window.location.href);
+                            
+                            // Extract provider from URL
+                            let provider = '';
+                            if (href.includes('/broker/google/')) provider = 'google';
+                            else if (href.includes('/broker/facebook/')) provider = 'facebook';
+                            else if (href.includes('/broker/github/')) provider = 'github';
+                            else if (href.includes('kc_idp_hint=google')) provider = 'google';
+                            else if (href.includes('kc_idp_hint=facebook')) provider = 'facebook';
+                            else if (href.includes('kc_idp_hint=github')) provider = 'github';
+                            
+                            if (provider) {
+                                // Use our dedicated social login route
+                                window.location.href = `{{ route('keycloak.social', '') }}/${provider}`;
+                            } else {
+                                // Fallback to direct link
+                                window.location.href = href;
+                            }
+                        });
+                    } else {
+                        // Regular Keycloak links - use HTMX
+                        a.setAttribute('hx-get', `{{ route('keycloak.proxy') }}?url=${encodeURIComponent(href)}`);
+                        a.setAttribute('hx-target', '#kc-container');
+                        a.setAttribute('hx-swap', 'innerHTML');
+                        a.removeAttribute('href');
+                    }
                 }
             });
 
@@ -138,6 +166,19 @@
 
             // Re-process with HTMX
             htmx.process(container);
+        });
+        
+        // Handle redirect from social login
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we're returning from social login
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('code') || urlParams.has('error')) {
+                // Load the Keycloak container with the callback
+                const container = document.getElementById('kc-container');
+                if (container) {
+                    htmx.ajax('GET', `{{ route('keycloak.proxy') }}?url=${encodeURIComponent(window.location.href)}`, '#kc-container');
+                }
+            }
         });
     })();
     </script>

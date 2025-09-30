@@ -53,7 +53,14 @@ class KeycloakAuthController extends Controller
     protected function preserveKeycloakCookies(Request $request): void
     {
         $keycloakCookies = [];
-        $importantCookies = ['KC_RESTART', 'AUTH_SESSION_ID', 'AUTH_SESSION_ID_LEGACY'];
+        $importantCookies = [
+            'KC_RESTART', 
+            'AUTH_SESSION_ID', 
+            'AUTH_SESSION_ID_LEGACY',
+            'KEYCLOAK_IDENTITY',
+            'KEYCLOAK_SESSION',
+            'KC_STATE_CHECKER'
+        ];
         
         foreach ($importantCookies as $cookieName) {
             if ($value = $request->cookie($cookieName)) {
@@ -63,6 +70,7 @@ class KeycloakAuthController extends Controller
         
         if (!empty($keycloakCookies)) {
             Session::put('preserved_keycloak_cookies', $keycloakCookies);
+            Session::save(); // Force session save
         }
     }
 
@@ -162,6 +170,31 @@ class KeycloakAuthController extends Controller
     public function proxy(Request $request)
     {
         return $this->proxy->handleRequest($request);
+    }
+    
+    /**
+     * Handle social login redirect
+     * This method handles the direct redirect to OAuth providers
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  string  $provider
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function socialLogin(Request $request, string $provider)
+    {
+        // Get the authorization URL with social provider hint
+        $authUrl = $this->keycloak->getAuthorizationUrl([
+            'kc_idp_hint' => $provider,
+        ]);
+        
+        // Store session data for return
+        Session::put('keycloak_social_login', true);
+        Session::put('keycloak_provider', $provider);
+        
+        // Preserve any existing Keycloak cookies
+        $this->preserveKeycloakCookies($request);
+        
+        return redirect($authUrl);
     }
 
     /**

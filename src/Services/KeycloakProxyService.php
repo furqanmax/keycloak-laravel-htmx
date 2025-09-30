@@ -84,26 +84,36 @@ class KeycloakProxyService
                     // Save cookies before redirecting to external provider
                     Session::put('keycloak_proxy_cookies', $this->cookieJar->toArray());
                     Session::put('keycloak_social_login', true);
+                    Session::put('keycloak_return_url', $request->fullUrl());
                     Session::save(); // Force session save
                     
-                    // For social login, we need to preserve the Keycloak session
-                    // Set cookies in the response that will be sent back to the browser
-                    $response = response('', 200)
-                        ->header('HX-Redirect', $absoluteLocation);
+                    // For social login, we need to handle this differently
+                    // Instead of using HX-Redirect, we need to do a full page redirect
+                    // to ensure cookies are properly set
                     
-                    // Add Keycloak cookies to the response
+                    // Create a response that will trigger a full page redirect
+                    $html = '<script>window.location.href = "' . htmlspecialchars($absoluteLocation) . '";</script>';
+                    $html .= '<p>Redirecting to authentication provider...</p>';
+                    
+                    $response = response($html, 200)
+                        ->header('Content-Type', 'text/html');
+                    
+                    // Set Keycloak cookies in the browser before redirect
+                    // These need to be set with SameSite=None for OAuth flow
+                    $keycloakDomain = parse_url(config('keycloak.base_url'), PHP_URL_HOST);
+                    
                     foreach ($this->cookieJar->toArray() as $cookie) {
                         if (isset($cookie['Name']) && isset($cookie['Value'])) {
-                            $response->cookie(
+                            // Important: Set these cookies in the browser directly
+                            setcookie(
                                 $cookie['Name'],
                                 $cookie['Value'],
                                 0, // session cookie
-                                $cookie['Path'] ?? '/',
-                                $cookie['Domain'] ?? null,
-                                $cookie['Secure'] ?? true,
-                                $cookie['HttpOnly'] ?? true,
-                                false, // raw
-                                $cookie['SameSite'] ?? 'Lax'
+                                '/',
+                                $keycloakDomain,
+                                true, // secure
+                                true, // httponly
+                                'None' // SameSite=None for OAuth flow
                             );
                         }
                     }
@@ -164,7 +174,9 @@ class KeycloakProxyService
             'KC_RESTART',
             'KEYCLOAK_IDENTITY',
             'KEYCLOAK_SESSION',
-            'KEYCLOAK_SESSION_LEGACY'
+            'KEYCLOAK_SESSION_LEGACY',
+            'KEYCLOAK_LOCALE',
+            'KC_STATE_CHECKER'
         ];
         
         foreach ($requiredCookies as $cookieName) {
@@ -179,6 +191,22 @@ class KeycloakProxyService
                     'Secure' => true,
                     'HttpOnly' => true,
                     'SameSite' => 'None' // Allow cross-site for OAuth flow
+                ]));
+            }
+        }
+        
+        // Also check for cookies in session (from previous requests)
+        $sessionCookies = Session::get('keycloak_proxy_cookies', []);
+        foreach ($sessionCookies as $cookie) {
+            if (isset($cookie['Name']) && in_array($cookie['Name'], $requiredCookies)) {
+                $this->cookieJar->setCookie(new \GuzzleHttp\Cookie\SetCookie([
+                    'Name' => $cookie['Name'],
+                    'Value' => $cookie['Value'] ?? '',
+                    'Domain' => $cookie['Domain'] ?? $keycloakDomain,
+                    'Path' => $cookie['Path'] ?? '/',
+                    'Secure' => $cookie['Secure'] ?? true,
+                    'HttpOnly' => $cookie['HttpOnly'] ?? true,
+                    'SameSite' => 'None'
                 ]));
             }
         }
@@ -301,7 +329,25 @@ class KeycloakProxyService
     protected function isExternalRedirect(string $url): bool
     {
         $baseUrl = config('keycloak.base_url');
-        return strpos($url, $baseUrl) !== 0;
+        // Check if it's not a Keycloak URL and not our app URL
+        $isExternal = strpos($url, $baseUrl) !== 0 && strpos($url, config('app.url')) !== 0;
+        
+        // Also check for known OAuth provider domains
+        $oauthProviders = [
+            'accounts.google.com',
+            'facebook.com',
+            'github.com',
+            'microsoft.com',
+            'linkedin.com'
+        ];
+        
+        foreach ($oauthProviders as $provider) {
+            if (strpos($url, $provider) !== false) {
+                return true;
+            }
+        }
+        
+        return $isExternal;
     }
 
     /**

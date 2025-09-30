@@ -23,6 +23,11 @@ Route::group([
     Route::match(['GET', 'POST'], config('keycloak.routes.proxy', 'proxy'), [KeycloakAuthController::class, 'proxy'])
         ->name('proxy');
     
+    // Social login endpoint (direct redirect, not HTMX)
+    Route::get('social/{provider}', [KeycloakAuthController::class, 'socialLogin'])
+        ->name('social')
+        ->where('provider', 'google|facebook|github|microsoft|linkedin');
+    
     // API endpoints
     Route::post(config('keycloak.routes.refresh', 'refresh'), [KeycloakAuthController::class, 'refresh'])
         ->name('refresh');
